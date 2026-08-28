@@ -18,6 +18,7 @@ function getTodayString() {
 }
 
 // 앱에서 쓰는 데이터 다 여기 모아둠
+
 let state = {
   profile: { height: "", weight: "", age: "", gender: "male", activity: "mid" },
   goalType: "",     // "bulk" | "diet" | "health" | "custom"
@@ -25,7 +26,8 @@ let state = {
   goalMethod: "",   // "ai" | "manual"
   goal: { calories: 0, carb: 0, protein: 0, fat: 0 },
   date: getTodayString(),
-  meals: []         // { name, calories, carb, protein, fat }
+  meals: [],         // { name, calories, carb, protein, fat }
+  history: {},      // 날짜별 하루 합계 - 주간 평균용
 };
 
 function saveState() {
@@ -37,11 +39,14 @@ function loadState() {
   if (!raw) return;
   const saved = JSON.parse(raw);
 
-  // 날짜 바뀌면 식단 기록만 리셋 (목표는 그대로 둠)
+    // 날짜 바뀌면 식단 기록만 리셋 (목표는 그대로 둠)
   if (saved.date !== getTodayString()) {
     saved.date = getTodayString();
     saved.meals = [];
   }
+
+  if (!saved.history) saved.history = {};
+
   state = saved;
 }
 
@@ -159,7 +164,6 @@ async function callAIForMeal(mealText) {
   return askGemini(system, mealText);
 }
 
-// (3) 먹은 거 사진으로 올리면 칼로리/탄단지 계산
 async function callAIForMealPhoto(base64Image, mimeType) {
   const system =
     "너는 영양 분석가야. 사용자가 올린 음식 사진을 보고 어떤 음식인지, 예상 영양 성분을 추정해. " +
@@ -338,6 +342,11 @@ function renderHome() {
 
   renderRing(sum);
   renderMealList();
+
+  // 오늘 합계를 날짜별 기록에도 저장 (주간 평균 계산용)
+  state.history[state.date] = sum;
+  saveState();
+  renderWeeklyAverage();
 }
 
 // 도넛 링 그래프 부분
@@ -381,11 +390,54 @@ function renderMealList() {
   }
   emptyRow.classList.add("hidden");
 
-  state.meals.forEach(meal => {
+  state.meals.forEach((meal, index) => {
     const li = document.createElement("li");
-    li.innerHTML = `<span class="meal-name">${meal.name}</span><span class="meal-kcal">${Math.round(meal.calories)} kcal</span>`;
+    li.innerHTML =
+      `<span class="meal-name">${meal.name}</span>` +
+      `<span class="meal-kcal">${Math.round(meal.calories)} kcal</span>` +
+      `<button class="btn-delete" data-index="${index}">✕</button>`;
     list.appendChild(li);
   });
+
+  // 방금 만든 삭제 버튼들에 클릭 이벤트 연결
+  list.querySelectorAll(".btn-delete").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const index = Number(btn.dataset.index);
+      state.meals.splice(index, 1); // 그 음식 하나만 배열에서 빼기
+      saveState();
+      renderHome();
+    });
+  });
+}
+
+// 최근 7일 중 기록이 있는 날짜들만 모아서 평균 계산
+function getWeeklyAverage() {
+  const days = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    days.push(d.toISOString().slice(0, 10));
+  }
+
+  const entries = days.map(d => state.history[d]).filter(Boolean);
+  if (entries.length === 0) return null;
+
+  const total = entries.reduce((acc, e) => {
+    acc.calories += e.calories; acc.carb += e.carb; acc.protein += e.protein; acc.fat += e.fat;
+    return acc;
+  }, { calories: 0, carb: 0, protein: 0, fat: 0 });
+
+  const n = entries.length;
+  return { calories: total.calories / n, carb: total.carb / n, protein: total.protein / n, fat: total.fat / n, days: n };
+}
+
+function renderWeeklyAverage() {
+  const avg = getWeeklyAverage();
+  document.getElementById("weekly-days").textContent = avg ? avg.days : 0;
+  document.getElementById("weekly-kcal").textContent = avg ? `${Math.round(avg.calories)} kcal` : "-";
+  document.getElementById("weekly-carb").textContent = avg ? `${Math.round(avg.carb)} g` : "-";
+  document.getElementById("weekly-protein").textContent = avg ? `${Math.round(avg.protein)} g` : "-";
+  document.getElementById("weekly-fat").textContent = avg ? `${Math.round(avg.fat)} g` : "-";
 }
 
 document.getElementById("btn-reset-all").addEventListener("click", () => {
@@ -462,11 +514,11 @@ document.getElementById("btn-analyze-meal").addEventListener("click", async () =
       fat: Number(result.fat_g) || 0
     };
 
-    document.getElementById("result-food-name").textContent = pendingMeal.name;
-    document.getElementById("result-kcal").textContent = `${Math.round(pendingMeal.calories)} kcal`;
-    document.getElementById("result-carb").textContent = `${Math.round(pendingMeal.carb)} g`;
-    document.getElementById("result-protein").textContent = `${Math.round(pendingMeal.protein)} g`;
-    document.getElementById("result-fat").textContent = `${Math.round(pendingMeal.fat)} g`;
+    document.getElementById("result-food-name").value = pendingMeal.name;
+    document.getElementById("result-kcal").value = Math.round(pendingMeal.calories);
+    document.getElementById("result-carb").value = Math.round(pendingMeal.carb);
+    document.getElementById("result-protein").value = Math.round(pendingMeal.protein);
+    document.getElementById("result-fat").value = Math.round(pendingMeal.fat);
 
     showScreen("screen-result");
   } catch (err) {
@@ -484,6 +536,14 @@ document.getElementById("btn-cancel-meal").addEventListener("click", () => showS
 
 document.getElementById("btn-save-meal").addEventListener("click", () => {
   if (!pendingMeal) return;
+
+  // 사용자가 저장 전에 직접 고친 값이 있으면 그 값을 그대로 반영
+  pendingMeal.name = document.getElementById("result-food-name").value.trim() || pendingMeal.name;
+  pendingMeal.calories = Number(document.getElementById("result-kcal").value) || 0;
+  pendingMeal.carb = Number(document.getElementById("result-carb").value) || 0;
+  pendingMeal.protein = Number(document.getElementById("result-protein").value) || 0;
+  pendingMeal.fat = Number(document.getElementById("result-fat").value) || 0;
+
   state.meals.push(pendingMeal);
   pendingMeal = null;
   saveState();
