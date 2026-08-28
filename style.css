@@ -391,3 +391,42 @@ textarea,
   border-radius: 8px;
   margin-top: 10px;
 }
+
+/* 음식 목록 삭제 버튼 */
+.btn-delete {
+  background: none;
+  border: none;
+  color: #A0A0A0;
+  cursor: pointer;
+  font-size: 0.95rem;
+  padding: 0 0 0 6px;
+}
+
+/* 분석 결과 수정 입력창 */
+.result-name-input {
+  display: block;
+  width: 100%;
+  font-size: 1.4rem;
+  font-weight: bold;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-color);
+  padding: 4px 0;
+  margin: 0 0 16px;
+}
+.result-input {
+  width: 70px;
+  text-align: right;
+  font-size: 0.9rem;
+  border: 1px solid var(--border-color);
+  background: var(--bg-color);
+  color: var(--text-color);
+  border-radius: 4px;
+  padding: 4px 6px;
+}
+.unit {
+  color: #A0A0A0;
+  font-size: 0.85rem;
+}
+
