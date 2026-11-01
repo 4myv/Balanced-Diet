@@ -103,7 +103,9 @@ function hideLoading() {
 
 // 구글 AI 스튜디오에서 받은 API 키
 // 배포하기 전에 구글 클라우드 콘솔에서 내 사이트 주소로 제한 걸어두기!
-const GEMINI_API_KEY = "AQ.Ab8RN6I08PZvun39hxYi4WNk3wNW-PEifSiJTJvkUxFGjPGwNg";
+// → 1차 버전에서는 여기에 실제 키가 들어 있어 브라우저 코드에 그대로 노출됐습니다. (기존 키는 폐기)
+// → 키를 서버에서 보관하도록 개선한 버전: https://github.com/4myv/Balanced-Diet-Spring
+const GEMINI_API_KEY = "YOUR_API_KEY";
 
 // 지금 쓰는 모델 이름
 // 나중에 모델 없어졌다고 에러 뜨면 여기 이름만 그 에러에 나온 걸로 바꾸면 됨
